@@ -60,9 +60,6 @@ router.post('/add', ensureAuthenticated, upload.single('img1'), async (req, res)
   }
 });
 
-
-
-// Route to get all posts
 // Route to get all posts
 router.get('/list', async (req, res) => {
   try {
