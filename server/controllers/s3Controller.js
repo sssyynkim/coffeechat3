@@ -120,17 +120,21 @@ const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fet
 const bucketName = process.env.AWS_BUCKET_NAME; // Bucket name from .env
 const region = process.env.AWS_REGION; // AWS region from .env
 
-// Function to generate a pre-signed URL for file upload
-const getPreSignedUrl = async (fileName) => {
+// Function to generate a pre-signed URL for file upload with user ID included
+const getPreSignedUrlWithUser = async (fileName, userId) => {
     const s3Client = new S3Client({ region, credentials: fromSSO({ profile: 'default' }) });
+    const key = `${userId}/${fileName}`;  // Use user ID as part of the file key
     const command = new PutObjectCommand({
         Bucket: bucketName,
-        Key: fileName,
-        ACL: 'public-read'  // Optional: You can adjust ACL depending on your use case
+        Key: key,
+        ACL: 'public-read',  // Adjust ACL as needed
+        Metadata: {
+            'uploaded-by': userId  // Add user info to metadata
+        }
     });
 
     try {
-        const preSignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
+        const preSignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
         return preSignedUrl;
     } catch (err) {
         console.error('Error generating pre-signed URL:', err);
@@ -163,23 +167,6 @@ const uploadFileToS3 = async (fileBuffer, preSignedUrl, contentType) => {
     }
 };
 
-// Function to delete image from S3
-const deleteImageFromS3 = async (fileName) => {
-    const s3Client = new S3Client({ region, credentials: fromSSO({ profile: 'default' }) });
-    const command = new DeleteObjectCommand({
-        Bucket: bucketName,
-        Key: fileName
-    });
-
-    try {
-        await s3Client.send(command);
-        console.log(`File deleted successfully: ${fileName}`);
-    } catch (err) {
-        console.error('Error deleting file:', err);
-        throw err;
-    }
-};
-
 // Function to generate a pre-signed URL for reading a file from S3
 const getPreSignedReadUrl = async (fileName) => {
     const s3Client = new S3Client({ region, credentials: fromSSO({ profile: 'default' }) });
@@ -197,39 +184,9 @@ const getPreSignedReadUrl = async (fileName) => {
     }
 };
 
-// Main function demonstrating use of S3 functions (Optional: for testing purposes)
-async function main() {
-    const fileName = 'myAwesomeObjectKey';
-    const fileContent = 'This could be just about anything.';
-
-    // Generate a pre-signed URL for uploading a file
-    const preSignedUrl = await getPreSignedUrl(fileName);
-
-    // Simulate file upload
-    const file = { buffer: Buffer.from(fileContent), mimetype: 'text/plain' };
-    await uploadFileToS3(file.buffer, preSignedUrl, file.mimetype);
-
-    // Generate a pre-signed URL for reading the uploaded file
-    const readUrl = await getPreSignedReadUrl(fileName);
-    console.log('Pre-signed URL to read the object:', readUrl);
-
-    // Fetch and log the file content using the pre-signed URL
-    const fetchResponse = await fetch(readUrl);
-    const object = await fetchResponse.text();
-    console.log('Object retrieved with pre-signed URL:', object);
-
-    // Optionally, delete the file after testing
-    await deleteImageFromS3(fileName);
-}
-
-// Call main function for demonstration
-// You can comment this out if using these functions as part of a larger application
-main().catch(console.error);
-
 // Export the S3 functions for external use in other parts of the application
 module.exports = {
+    getPreSignedUrlWithUser,
     uploadFileToS3,
-    getPreSignedUrl,
-    deleteImageFromS3,
     getPreSignedReadUrl
 };

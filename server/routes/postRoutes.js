@@ -1,10 +1,9 @@
-
 const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const ensureAuthenticated = require('../middleware/auth');
 const { getDB } = require('../config/db');
-const { getPreSignedUrl, uploadFileToS3, deleteImageFromS3, getPreSignedReadUrl } = require('../controllers/s3Controller.js'); // Import S3 functions correctly
+const { getPreSignedUrlWithUser, uploadFileToS3, deleteImageFromS3, getPreSignedReadUrl } = require('../controllers/s3Controller.js'); // Import S3 functions correctly
 const { upload } = require('../middleware/fileUpload'); // Import multer configuration
 const { ObjectId } = require('mongodb');
 const path = require('path');
@@ -14,7 +13,6 @@ router.get('/write', ensureAuthenticated, (req, res) => {
   res.render('write', { user: req.user });
 });
 
-// Route to handle adding a new post
 // Route to handle adding a new post
 router.post('/add', ensureAuthenticated, upload.single('img1'), async (req, res) => {
   try {
@@ -26,11 +24,12 @@ router.post('/add', ensureAuthenticated, upload.single('img1'), async (req, res)
     }
 
     // Generate a unique file name
+    const userId = req.user.sub || req.user.email; // Cognito로 인증된 유저의 ID 또는 이메일
     const fileName = Date.now() + path.extname(req.file.originalname);
     console.log('Generated fileName:', fileName);
 
     // Generate a pre-signed URL for uploading the file to S3
-    const preSignedUrl = await getPreSignedUrl(fileName);
+    const preSignedUrl = await getPreSignedUrlWithUser(fileName, userId);
     if (!preSignedUrl) {
         throw new Error('Failed to generate pre-signed URL');
     }
@@ -47,7 +46,7 @@ router.post('/add', ensureAuthenticated, upload.single('img1'), async (req, res)
     // Create post data
     const postData = {
       ...req.body,
-      imageUrl: `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`,  // Store S3 URL
+      imageUrl: `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${userId}/${fileName}`,  // Store S3 URL
       user: req.user._id,
       createdAt: new Date(),
     };
@@ -101,7 +100,6 @@ router.get('/list', async (req, res) => {
     res.status(500).send('Failed to fetch posts');
   }
 });
-
 
 // Route to get details of a specific post by ID
 router.get('/detail/:id', async (req, res) => {
@@ -170,10 +168,12 @@ router.post('/edit/:id', ensureAuthenticated, upload.single('img1'), async (req,
 
     // If a new image is uploaded, update the image URL and pre-signed URL
     if (req.file) {
-      const fileName = req.file.filename;
-      const preSignedUrl = await getPreSignedUrl(fileName); 
+      const userId = req.user.sub || req.user.email; // 사용자 정보
+      const fileName = Date.now() + path.extname(req.file.originalname); // 새로운 파일 이름 생성
+      const preSignedUrl = await getPreSignedUrlWithUser(fileName, userId); // 유저 정보를 포함한 Pre-signed URL 생성
 
-      updateData.imageUrl = fileName;
+      // 이미지 URL 업데이트
+      updateData.imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${userId}/${fileName}`;
       updateData.preSignedUrl = preSignedUrl;
     }
 

@@ -241,25 +241,33 @@ app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
 // File upload route with S3Client from AWS SDK v3
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post('/upload', ensureAuthenticated, upload.single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).send('No file uploaded.');
     }
 
+    // Cognito에서 유저의 ID 또는 이메일을 가져옵니다.
+    const userId = req.user.sub; // Cognito에서 받은 유저의 고유 ID
+    const email = req.user.email; // 또는 이메일 사용 가능
+
+    // S3에 업로드할 파일의 Key에 유저 정보를 포함
     const params = {
         Bucket: bucketName,
-        Key: req.file.originalname,  // Use original file name or generate a unique key
+        Key: `${userId}/${req.file.originalname}`,  // 유저별로 폴더에 파일 업로드
         Body: req.file.buffer,       // File content from memory
-        ContentType: req.file.mimetype // Correct file MIME type
+        ContentType: req.file.mimetype, // Correct file MIME type
+        Metadata: {
+            'uploaded-by': email // 메타데이터에 유저 이메일 저장
+        }
     };
 
     console.log('Uploading to bucket:', bucketName);
-    console.log('Uploading file with key:', req.file.originalname);
+    console.log('Uploading file with key:', `${userId}/${req.file.originalname}`);
 
     try {
         const command = new PutObjectCommand(params);
         const data = await s3Client.send(command);
-        res.status(200).send(`File uploaded successfully: https://${bucketName}.s3.${region}.amazonaws.com/${req.file.originalname}`);
+        res.status(200).send(`File uploaded successfully: https://${bucketName}.s3.${region}.amazonaws.com/${userId}/${req.file.originalname}`);
     } catch (err) {
         console.error('Error uploading file:', err);
         res.status(500).send('File upload failed');
