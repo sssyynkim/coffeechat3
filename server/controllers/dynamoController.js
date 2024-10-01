@@ -269,8 +269,9 @@ async function addTestItem() {
 
 
 module.exports = {
-    addPost,
-    getPost,
-    getAllPosts,
-    addTestItem
+    createDynamoDBClient,
+    addPost,  // If needed in other files
+    getPost,  // If needed in other files
+    getAllPosts,  // If needed in other files
+    addTestItem  // If needed in other files
 };
