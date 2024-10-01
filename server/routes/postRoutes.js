@@ -214,7 +214,7 @@ router.get('/presigned-url', async (req, res) => {
   }
 
   try {
-    const preSignedUrl = await getPreSignedUrl(fileName);
+    const preSignedUrl = await getPreSignedUrlWithUser(fileName);
     res.json({ url: preSignedUrl });
   } catch (error) {
     console.error('Error generating pre-signed URL:', error);
